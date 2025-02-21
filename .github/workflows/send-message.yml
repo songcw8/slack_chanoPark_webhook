@@ -35,5 +35,5 @@ jobs:
           LLM_PROMPT: ${{ vars.LLM_PROMPT }}
           SLACK_WEBHOOK_TITLE: ${{ vars.SLACK_WEBHOOK_TITLE }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          GEMINI_API_KEY: ${{ secrets.LLM2_API_KEY }}
-          GEMINI_API_URL: ${{ secrets.LLM2_API_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_URL: ${{ secrets.GEMINI_API_URL }}
