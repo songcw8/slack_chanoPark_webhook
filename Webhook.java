@@ -2,8 +2,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 
 public class Webhook {
     public static void main(String[] args) {
@@ -59,13 +57,9 @@ public class Webhook {
 
     public static String useLLM(String prompt) {
     // Gemini API 관련 환경변수
-    String apiUrl = System.getenv("GENIMI_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-    String apiKey = System.getenv("GENIMI_API_KEY"); // Gemini API 키
+    String apiUrl = System.getenv("GENIMI_API_URL");
+    String apiKey = System.getenv("GENIMI_API_KEY");
     apiUrl = apiUrl + "?key=" + apiKey;
-    // URL에 API 키를 쿼리 파라미터로 추가 (Gemini는 Authorization 헤더 대신 URL 쿼리 파라미터 사용)
-    // if (!apiUrl.contains("?key=")) {
-    //     apiUrl += "?key=" + apiKey;
-    // }
     
     // Gemini API 형식에 맞게 페이로드 구성
     String payload = """
