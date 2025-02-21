@@ -57,8 +57,8 @@ public class Webhook {
 
     public static String useLLM(String prompt) {
     // Gemini API 관련 환경변수
-    String apiUrl = System.getenv("GENIMI_API_URL");
-    String apiKey = System.getenv("GENIMI_API_KEY");
+    String apiUrl = System.getenv("GEMINI_API_URL");
+    String apiKey = System.getenv("GEMINI_API_KEY");
     apiUrl = apiUrl + "?key=" + apiKey;
     
     // Gemini API 형식에 맞게 페이로드 구성
