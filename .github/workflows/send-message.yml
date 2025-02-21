@@ -3,7 +3,7 @@ name: send message
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/5 * * * *"  # 매 5분마다 실행 (보장 안됨)
+    - cron: "*/10 * * * *"  # 매 5분마다 실행 (보장 안됨)
 
 jobs:
   send-message:
