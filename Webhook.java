@@ -57,77 +57,145 @@ public class Webhook {
         return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
     }
 
-    public static String useLLM(String prompt) {
-        String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
-        String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
-        // String model = System.getenv("LLM_API_MODEL"); // 환경변수로 관리
 
-        if (!apiUrl.contains("?key=")) {
-            apiUrl += "?key=" + apiKey;
-        }
-        String payload = String.format("""
-                {
-                    "contents": [
-                        {
-                            "role": "user",
-                            "parts": [
-                                {
-                                    "text": "%s"
-                                }
-                            ]
-                        }
-                    ]
-                }
-                """, prompt);
-
-        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(apiUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
-                .header("Content-Type", "application/json")
-                //.header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build(); // 핵심
-        try { // try
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            // System.out.println("response.statsusCode() = " + response.statusCode());
-            // System.out.println("response.body() = " + response.body());
-
-            String responseBody = response.body();
-            String result = null;
-            // content 값이 시작하는 위치
-
-            // ============= Gemini 문자열 파싱 ================ //
-            String patternString = "\"text\":\\s*\"([^\"]+)\"";
-            Pattern pattern = Pattern.compile(patternString);
-            Matcher matcher = pattern.matcher(responseBody);
-
-            if (matcher.find()) {
-                return matcher.group(1).trim(); // ✅ 찾은 값 반환 (앞뒤 공백 제거)
-            } else {
-                System.out.println("'text' 값을 찾을 수 없음!");
-                return "⚠ API 응답에서 'text' 값을 찾을 수 없음!";
-            }
-
-            /* 지금 Gemini
-            "candidates": [
-            {
-              "content": {
-                "parts": [
-                  {
-                    "text": "무엇이든 기록하고 공유해봐요 📝.  코드는 간결하게, 주석은 명확하게!  괜찮아요, 질문 많이 하는 게 더 빨라요 👍.  그리고… 규칙적인 휴식 필수! ☕\n"
-                  }
-                ],
-                "role": "model"
-              },
-             */
-            //result = responseBody.split("\"text\":")[1].split("\"")[0];
-            //System.out.println("result = " + result);
-            //return result;
-        } catch (Exception e) { // 예외 처리
-            throw new RuntimeException(e);
-        }
+public static String useLLM(String prompt) {
+    String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
+    String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
+    
+    if (!apiUrl.contains("?key=")) {
+        apiUrl += "?key=" + apiKey;
     }
+    
+    String payload = String.format("""
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": "%s"
+                            }
+                        ]
+                    }
+                ]
+            }
+            """, prompt);
+
+    HttpClient client = HttpClient.newHttpClient();
+    HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(apiUrl))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .build();
+            
+    try {
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println("응답 상태 코드: " + response.statusCode());
+        
+        // 응답 상태 코드 확인
+        if (response.statusCode() != 200) {
+            System.out.println("API 호출 실패: " + response.statusCode());
+            System.out.println("응답 내용: " + response.body());
+            return "API 호출에 실패했습니다: " + response.statusCode();
+        }
+        
+        String responseBody = response.body();
+        if (responseBody == null || responseBody.isEmpty()) {
+            System.out.println("응답 내용이 비어있습니다.");
+            return "API 응답이 비어있습니다.";
+        }
+        
+        // 정규식을 이용한 텍스트 추출
+        String patternString = "\"text\":\\s*\"([^\"]+)\"";
+        Pattern pattern = Pattern.compile(patternString);
+        Matcher matcher = pattern.matcher(responseBody);
+
+        if (matcher.find()) {
+            String result = matcher.group(1).trim()
+                    .replace("\\n", "\n")  // 개행문자 처리
+                    .replace("\\\"", "\""); // 따옴표 처리
+            return result;
+        } else {
+            System.out.println("'text' 값을 찾을 수 없음!");
+            System.out.println("응답 내용: " + responseBody);
+            return "API 응답에서 'text' 값을 찾을 수 없습니다.";
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+        return "오류 발생: " + e.getMessage();
+    }
+}
+    // public static String useLLM(String prompt) {
+    //     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
+    //     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
+    //     // String model = System.getenv("LLM_API_MODEL"); // 환경변수로 관리
+
+    //     if (!apiUrl.contains("?key=")) {
+    //         apiUrl += "?key=" + apiKey;
+    //     }
+    //     String payload = String.format("""
+    //             {
+    //                 "contents": [
+    //                     {
+    //                         "role": "user",
+    //                         "parts": [
+    //                             {
+    //                                 "text": "%s"
+    //                             }
+    //                         ]
+    //                     }
+    //                 ]
+    //             }
+    //             """, prompt);
+
+    //     HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
+    //     HttpRequest request = HttpRequest.newBuilder()
+    //             .uri(URI.create(apiUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
+    //             .header("Content-Type", "application/json")
+    //             //.header("Authorization", "Bearer " + apiKey)
+    //             .POST(HttpRequest.BodyPublishers.ofString(payload))
+    //             .build(); // 핵심
+    //     try { // try
+    //         HttpResponse<String> response = client.send(request,
+    //                 HttpResponse.BodyHandlers.ofString());
+    //         // System.out.println("response.statsusCode() = " + response.statusCode());
+    //         // System.out.println("response.body() = " + response.body());
+
+    //         String responseBody = response.body();
+    //         String result = null;
+    //         // content 값이 시작하는 위치
+
+    //         // ============= Gemini 문자열 파싱 ================ //
+    //         String patternString = "\"text\":\\s*\"([^\"]+)\"";
+    //         Pattern pattern = Pattern.compile(patternString);
+    //         Matcher matcher = pattern.matcher(responseBody);
+
+    //         if (matcher.find()) {
+    //             return matcher.group(1).trim(); // ✅ 찾은 값 반환 (앞뒤 공백 제거)
+    //         } else {
+    //             System.out.println("'text' 값을 찾을 수 없음!");
+    //             return "⚠ API 응답에서 'text' 값을 찾을 수 없음!";
+    //         }
+
+    //         /* 지금 Gemini
+    //         "candidates": [
+    //         {
+    //           "content": {
+    //             "parts": [
+    //               {
+    //                 "text": "무엇이든 기록하고 공유해봐요 📝.  코드는 간결하게, 주석은 명확하게!  괜찮아요, 질문 많이 하는 게 더 빨라요 👍.  그리고… 규칙적인 휴식 필수! ☕\n"
+    //               }
+    //             ],
+    //             "role": "model"
+    //           },
+    //          */
+    //         //result = responseBody.split("\"text\":")[1].split("\"")[0];
+    //         //System.out.println("result = " + result);
+    //         //return result;
+    //     } catch (Exception e) { // 예외 처리
+    //         throw new RuntimeException(e);
+    //     }
+    // }
 
     public static void sendSlackMessage(String title, String text) {
         String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
