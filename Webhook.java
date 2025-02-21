@@ -61,13 +61,7 @@ public class Webhook {
     // Gemini API 관련 환경변수
     String apiUrl = System.getenv("GENIMI_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
     String apiKey = System.getenv("GENIMI_API_KEY"); // Gemini API 키
-    
-    if (apiUrl == null || apiUrl.isEmpty()) {
-        // 기본 Gemini API URL 설정
-        apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-        System.out.println("LLM_API_URL 환경 변수가 설정되지 않아 기본 URL을 사용합니다.");
-    }
-    
+
     // URL에 API 키를 쿼리 파라미터로 추가 (Gemini는 Authorization 헤더 대신 URL 쿼리 파라미터 사용)
     if (!apiUrl.contains("?key=")) {
         apiUrl += "?key=" + apiKey;
