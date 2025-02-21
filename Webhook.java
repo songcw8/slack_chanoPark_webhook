@@ -2,6 +2,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public class Webhook {
     public static void main(String[] args) {
@@ -126,6 +128,36 @@ public class Webhook {
             throw new RuntimeException(e);
         }
     }
+
+    public static void sendSlackMessage(String title, String text) {
+        String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
+        String payload = """
+                    {"attachments": [{
+                        "title": "%s",
+                        "text": "%s",
+                    }]}
+                """.formatted(title, text);
+        // 마치 브라우저나 유저인 척하는 것.
+        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
+        // 요청을 만들어보자! (fetch)
+        HttpRequest request = HttpRequest.newBuilder()
+                // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
+                .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build(); // 핵심
+
+        // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
+        try { // try
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
+            System.out.println("response.statusCode() = " + response.statusCode());
+            System.out.println("response.body() = " + response.body());
+        } catch (Exception e) { // catch exception e
+            throw new RuntimeException(e);
+        }
+    }
 }
 
     // public static String useLLM(String prompt) {
@@ -170,36 +202,6 @@ public class Webhook {
     //         throw new RuntimeException(e);
     //     }
     //     return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
-    // }
-
-    // public static void sendSlackMessage(String title, String text) {
-    //     String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
-    //     String payload = """
-    //                 {"attachments": [{
-    //                     "title": "%s",
-    //                     "text": "%s",
-    //                 }]}
-    //             """.formatted(title, text);
-    //     // 마치 브라우저나 유저인 척하는 것.
-    //     HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
-    //     // 요청을 만들어보자! (fetch)
-    //     HttpRequest request = HttpRequest.newBuilder()
-    //             // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
-    //             .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
-    //             .header("Content-Type", "application/json")
-    //             .POST(HttpRequest.BodyPublishers.ofString(payload))
-    //             .build(); // 핵심
-
-    //     // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
-    //     try { // try
-    //         HttpResponse<String> response = client.send(request,
-    //                 HttpResponse.BodyHandlers.ofString());
-    //         // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
-    //         System.out.println("response.statusCode() = " + response.statusCode());
-    //         System.out.println("response.body() = " + response.body());
-    //     } catch (Exception e) { // catch exception e
-    //         throw new RuntimeException(e);
-    //     }
     // }
 
 //     public static void sendSlackMessage(String title, String text, String imageUrl) {
