@@ -1,5 +1,3 @@
-package dev_2250221;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
