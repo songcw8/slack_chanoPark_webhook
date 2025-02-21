@@ -70,9 +70,7 @@ public static String useLLM(String prompt) {
     
     if (apiUrl == null || apiUrl.isEmpty()) {
         System.err.println("GEMINI_API_URL 환경 변수가 설정되지 않았습니다.");
-        // 기본 URL 설정
-        apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
-        System.err.println("기본 URL 사용: " + apiUrl);
+        return "URL이 설정되지 않았습니다.";
     }
 
     if (!apiUrl.contains("?key=")) {
