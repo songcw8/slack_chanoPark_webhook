@@ -59,8 +59,8 @@ public class Webhook {
 
     public static String useLLM(String prompt) {
     // Gemini API 관련 환경변수
-    String apiUrl = System.getenv("LLM_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-    String apiKey = System.getenv("LLM_API_KEY"); // Gemini API 키
+    String apiUrl = System.getenv("GENIMI_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    String apiKey = System.getenv("GENIMI_API_KEY"); // Gemini API 키
     
     // URL에 API 키를 쿼리 파라미터로 추가 (Gemini는 Authorization 헤더 대신 URL 쿼리 파라미터 사용)
     if (!apiUrl.contains("?key=")) {
