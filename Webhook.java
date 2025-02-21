@@ -59,18 +59,13 @@ public class Webhook {
 
     public static String useLLM(String prompt) {
     String apiKey = System.getenv("GEMINI_API_KEY");
-    
-    // 기본 Gemini API URL 사용
     String apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
     
-    // 프롬프트에서 JSON 특수문자 처리
+    // 프롬프트 특수문자 처리
     prompt = prompt.replace("\\", "\\\\")
                    .replace("\"", "\\\"")
-                   .replace("\n", "\\n")
-                   .replace("\r", "\\r")
-                   .replace("\t", "\\t");
+                   .replace("\n", "\\n");
     
-    // 간소화된 페이로드 구조
     String payload = String.format("""
             {
               "contents": [
@@ -99,41 +94,62 @@ public class Webhook {
         if (response.statusCode() == 200) {
             String responseBody = response.body();
             
-            // JsonObject 방식으로 처리 (String 파싱 방식보다 안정적)
-            // JSON 응답에서 text 부분 추출 (예시 - 실제 응답 구조에 맞게 수정 필요)
-            StringBuilder result = new StringBuilder();
-            
-            // parts 배열의 모든 텍스트 내용을 추출하는 정규식
-            Pattern pattern = Pattern.compile("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-            Matcher matcher = pattern.matcher(responseBody);
-            
-            // 모든 일치 항목 찾기
-            while (matcher.find()) {
-                String matchedText = matcher.group(1)
-                    .replace("\\n", "\n")
-                    .replace("\\\"", "\"")
-                    .replace("\\\\", "\\");
-                result.append(matchedText);
+            // candidates 배열의 첫 번째 요소의 content 내부 parts 배열에서 text 찾기
+            if (responseBody.contains("\"candidates\"") && 
+                responseBody.contains("\"content\"") && 
+                responseBody.contains("\"parts\"")) {
+                
+                // 시작 위치 찾기
+                int startPos = responseBody.indexOf("\"text\":");
+                if (startPos != -1) {
+                    // 시작 따옴표 위치 찾기
+                    startPos = responseBody.indexOf("\"", startPos + 7) + 1;
+                    
+                    // 응답 텍스트 끝 위치 찾기 (닫는 따옴표)
+                    // 이스케이프된 따옴표는 건너뛰기
+                    int endPos = startPos;
+                    boolean escaped = false;
+                    while (endPos < responseBody.length()) {
+                        char c = responseBody.charAt(endPos);
+                        if (c == '\\') {
+                            escaped = !escaped;
+                        } else if (c == '"' && !escaped) {
+                            break;
+                        } else {
+                            escaped = false;
+                        }
+                        endPos++;
+                    }
+                    
+                    if (endPos > startPos) {
+                        String result = responseBody.substring(startPos, endPos)
+                            .replace("\\n", "\n")
+                            .replace("\\\"", "\"")
+                            .replace("\\\\", "\\");
+                        return result;
+                    }
+                }
+                
+                // 백업 방법: 전체 응답 반환
+                System.out.println("첫 번째 방법으로 텍스트를 추출할 수 없습니다.");
+                
+                // candidates 배열 시작 찾기
+                int candidatesStart = responseBody.indexOf("\"candidates\"");
+                int contentStart = responseBody.indexOf("\"content\"", candidatesStart);
+                if (contentStart != -1) {
+                    int contentEnd = responseBody.indexOf("}", contentStart);
+                    if (contentEnd != -1) {
+                        return "응답의 일부 추출: " + responseBody.substring(contentStart, contentEnd + 1);
+                    }
+                }
             }
             
-            if (result.length() > 0) {
-                return result.toString();
-            } else {
-                System.err.println("응답에서 텍스트를 찾을 수 없음");
-                System.err.println("전체 응답: " + responseBody);
-                return "응답에서 텍스트를 추출할 수 없습니다.";
-            }
+            // 마지막 방법: 전체 응답 반환
+            return "전체 응답을 반환합니다: " + responseBody;
         } else {
-            System.err.println("API 호출 실패: " + response.statusCode());
-            System.err.println("응답 내용: " + response.body());
-            
-            // 400 에러 처리
-            if (response.statusCode() == 400 && "invalid_payload".equals(response.body())) {
-                System.err.println("페이로드 디버깅:");
-                System.err.println(payload);
-                return "API 요청 페이로드가 유효하지 않습니다. 프롬프트를 확인해주세요.";
+            if (response.statusCode() == 400 && response.body().contains("invalid_payload")) {
+                System.err.println("잘못된 페이로드 에러. 전송된 페이로드: " + payload);
             }
-            
             return "API 호출 실패: " + response.statusCode() + " - " + response.body();
         }
     } catch (Exception e) {
@@ -141,7 +157,6 @@ public class Webhook {
         return "오류 발생: " + e.getMessage();
     }
 }
-
 
 
 // public static String useLLM(String prompt) {
