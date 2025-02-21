@@ -62,6 +62,19 @@ public static String useLLM(String prompt) {
     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
     
+    // 환경 변수 체크
+    if (apiKey == null || apiKey.isEmpty()) {
+        System.err.println("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.");
+        return "API 키가 설정되지 않았습니다.";
+    }
+    
+    if (apiUrl == null || apiUrl.isEmpty()) {
+        System.err.println("GEMINI_API_URL 환경 변수가 설정되지 않았습니다.");
+        // 기본 URL 설정
+        apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        System.err.println("기본 URL 사용: " + apiUrl);
+    }
+
     if (!apiUrl.contains("?key=")) {
         apiUrl += "?key=" + apiKey;
     }
