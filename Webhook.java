@@ -57,85 +57,171 @@ public class Webhook {
         return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
     }
 
-
-public static String useLLM(String prompt) {
-    String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
-    String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
+    public static String useLLM(String prompt) {
+    String apiKey = System.getenv("GEMINI_API_KEY");
     
-    // 환경 변수 체크
-    if (apiKey == null || apiKey.isEmpty()) {
-        System.err.println("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.");
-        return "API 키가 설정되지 않았습니다.";
-    }
+    // 기본 Gemini API URL 사용
+    String apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
     
-    if (apiUrl == null || apiUrl.isEmpty()) {
-        System.err.println("GEMINI_API_URL 환경 변수가 설정되지 않았습니다.");
-        return "URL이 설정되지 않았습니다.";
-    }
-
-    if (!apiUrl.contains("?key=")) {
-        apiUrl += "?key=" + apiKey;
-    }
+    // 프롬프트에서 JSON 특수문자 처리
+    prompt = prompt.replace("\\", "\\\\")
+                   .replace("\"", "\\\"")
+                   .replace("\n", "\\n")
+                   .replace("\r", "\\r")
+                   .replace("\t", "\\t");
     
+    // 간소화된 페이로드 구조
     String payload = String.format("""
             {
-                "contents": [
+              "contents": [
+                {
+                  "parts": [
                     {
-                        "role": "user",
-                        "parts": [
-                            {
-                                "text": "%s"
-                            }
-                        ]
+                      "text": "%s"
                     }
-                ]
+                  ]
+                }
+              ]
             }
             """, prompt);
-
+    
     HttpClient client = HttpClient.newHttpClient();
     HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(apiUrl))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(payload))
             .build();
-            
+    
     try {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         System.out.println("응답 상태 코드: " + response.statusCode());
         
-        // 응답 상태 코드 확인
-        if (response.statusCode() != 200) {
-            System.out.println("API 호출 실패: " + response.statusCode());
-            System.out.println("응답 내용: " + response.body());
-            return "API 호출에 실패했습니다: " + response.statusCode();
-        }
-        
-        String responseBody = response.body();
-        if (responseBody == null || responseBody.isEmpty()) {
-            System.out.println("응답 내용이 비어있습니다.");
-            return "API 응답이 비어있습니다.";
-        }
-        
-        // 정규식을 이용한 텍스트 추출
-        String patternString = "\"text\":\\s*\"([^\"]+)\"";
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(responseBody);
-
-        if (matcher.find()) {
-            String result = matcher.group(1).trim()
-                    .replace("\\n", "\n")  // 개행문자 처리
-                    .replace("\\\"", "\""); // 따옴표 처리
-            return result;
+        if (response.statusCode() == 200) {
+            String responseBody = response.body();
+            
+            // JsonObject 방식으로 처리 (String 파싱 방식보다 안정적)
+            // JSON 응답에서 text 부분 추출 (예시 - 실제 응답 구조에 맞게 수정 필요)
+            StringBuilder result = new StringBuilder();
+            
+            // parts 배열의 모든 텍스트 내용을 추출하는 정규식
+            Pattern pattern = Pattern.compile("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
+            Matcher matcher = pattern.matcher(responseBody);
+            
+            // 모든 일치 항목 찾기
+            while (matcher.find()) {
+                String matchedText = matcher.group(1)
+                    .replace("\\n", "\n")
+                    .replace("\\\"", "\"")
+                    .replace("\\\\", "\\");
+                result.append(matchedText);
+            }
+            
+            if (result.length() > 0) {
+                return result.toString();
+            } else {
+                System.err.println("응답에서 텍스트를 찾을 수 없음");
+                System.err.println("전체 응답: " + responseBody);
+                return "응답에서 텍스트를 추출할 수 없습니다.";
+            }
         } else {
-            System.out.println("'text' 값을 찾을 수 없음!");
-            System.out.println("응답 내용: " + responseBody);
-            return "API 응답에서 'text' 값을 찾을 수 없습니다.";
+            System.err.println("API 호출 실패: " + response.statusCode());
+            System.err.println("응답 내용: " + response.body());
+            
+            // 400 에러 처리
+            if (response.statusCode() == 400 && "invalid_payload".equals(response.body())) {
+                System.err.println("페이로드 디버깅:");
+                System.err.println(payload);
+                return "API 요청 페이로드가 유효하지 않습니다. 프롬프트를 확인해주세요.";
+            }
+            
+            return "API 호출 실패: " + response.statusCode() + " - " + response.body();
         }
     } catch (Exception e) {
         e.printStackTrace();
         return "오류 발생: " + e.getMessage();
     }
 }
+
+
+
+// public static String useLLM(String prompt) {
+//     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
+//     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
+    
+//     // 환경 변수 체크
+//     if (apiKey == null || apiKey.isEmpty()) {
+//         System.err.println("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.");
+//         return "API 키가 설정되지 않았습니다.";
+//     }
+    
+//     if (apiUrl == null || apiUrl.isEmpty()) {
+//         System.err.println("GEMINI_API_URL 환경 변수가 설정되지 않았습니다.");
+//         return "URL이 설정되지 않았습니다.";
+//     }
+
+//     if (!apiUrl.contains("?key=")) {
+//         apiUrl += "?key=" + apiKey;
+//     }
+    
+//     String payload = String.format("""
+//             {
+//                 "contents": [
+//                     {
+//                         "role": "user",
+//                         "parts": [
+//                             {
+//                                 "text": "%s"
+//                             }
+//                         ]
+//                     }
+//                 ]
+//             }
+//             """, prompt);
+
+//     HttpClient client = HttpClient.newHttpClient();
+//     HttpRequest request = HttpRequest.newBuilder()
+//             .uri(URI.create(apiUrl))
+//             .header("Content-Type", "application/json")
+//             .POST(HttpRequest.BodyPublishers.ofString(payload))
+//             .build();
+            
+//     try {
+//         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+//         System.out.println("응답 상태 코드: " + response.statusCode());
+        
+//         // 응답 상태 코드 확인
+//         if (response.statusCode() != 200) {
+//             System.out.println("API 호출 실패: " + response.statusCode());
+//             System.out.println("응답 내용: " + response.body());
+//             return "API 호출에 실패했습니다: " + response.statusCode();
+//         }
+        
+//         String responseBody = response.body();
+//         if (responseBody == null || responseBody.isEmpty()) {
+//             System.out.println("응답 내용이 비어있습니다.");
+//             return "API 응답이 비어있습니다.";
+//         }
+        
+//         // 정규식을 이용한 텍스트 추출
+//         String patternString = "\"text\":\\s*\"([^\"]+)\"";
+//         Pattern pattern = Pattern.compile(patternString);
+//         Matcher matcher = pattern.matcher(responseBody);
+
+//         if (matcher.find()) {
+//             String result = matcher.group(1).trim()
+//                     .replace("\\n", "\n")  // 개행문자 처리
+//                     .replace("\\\"", "\""); // 따옴표 처리
+//             return result;
+//         } else {
+//             System.out.println("'text' 값을 찾을 수 없음!");
+//             System.out.println("응답 내용: " + responseBody);
+//             return "API 응답에서 'text' 값을 찾을 수 없습니다.";
+//         }
+//     } catch (Exception e) {
+//         e.printStackTrace();
+//         return "오류 발생: " + e.getMessage();
+//     }
+// }
     // public static String useLLM(String prompt) {
     //     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
     //     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
