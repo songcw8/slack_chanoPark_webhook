@@ -8,7 +8,7 @@ public class Webhook {
         System.out.println("llmResult = " + llmResult);
         System.out.println("llmImageResult = " + llmImageResult);
         String title = System.getenv("SLACK_WEBHOOK_TITLE");
-        //sendSlackMessage(title, llmResult, llmImageResult);
+        sendSlackMessage(title, llmResult, llmImageResult);
 
     }
 
