@@ -58,231 +58,57 @@ public class Webhook {
     }
 
     public static String useLLM(String prompt) {
-    try {
-        String apiKey = System.getenv("GEMINI_API_KEY");
-        
-        // curl 명령어 실행 방식으로 시도
-        String command = String.format(
-            "curl -s 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s' " +
-            "-H 'Content-Type: application/json' " +
-            "-X POST " +
-            "-d '{\"contents\":[{\"parts\":[{\"text\":\"%s\"}]}]}'",
-            apiKey, prompt.replace("\"", "\\\"").replace("\n", "\\n"));
-        
-        Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
-        
-        // 프로세스 출력 읽기
-        java.io.BufferedReader reader = new java.io.BufferedReader(
-            new java.io.InputStreamReader(process.getInputStream()));
-        StringBuilder output = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            output.append(line).append("\n");
-        }
-        
-        // 프로세스 종료 대기
-        int exitCode = process.waitFor();
-        
-        if (exitCode == 0) {
-            // 간단한 파싱
-            String response = output.toString();
-            if (response.contains("\"text\":\"")) {
-                int startIndex = response.indexOf("\"text\":\"") + 8;
-                int endIndex = response.indexOf("\"}", startIndex);
-                return response.substring(startIndex, endIndex)
-                       .replace("\\n", "\n")
-                       .replace("\\\"", "\"");
-            } else {
-                return response;
+    // Gemini API 관련 환경변수
+    String apiUrl = System.getenv("LLM_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    String apiKey = System.getenv("LLM_API_KEY"); // Gemini API 키
+    
+    // URL에 API 키를 쿼리 파라미터로 추가 (Gemini는 Authorization 헤더 대신 URL 쿼리 파라미터 사용)
+    if (!apiUrl.contains("?key=")) {
+        apiUrl += "?key=" + apiKey;
+    }
+    
+    // Gemini API 형식에 맞게 페이로드 구성
+    String payload = """
+            {
+              "contents": [
+                {
+                  "parts": [
+                    {
+                      "text": "%s"
+                    }
+                  ]
+                }
+              ]
             }
+            """.formatted(prompt);
+    
+    HttpClient client = HttpClient.newHttpClient();
+    HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(apiUrl))
+            .header("Content-Type", "application/json")
+            // Gemini API는 쿼리 파라미터로 API 키를 전달하므로 Authorization 헤더 제거
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .build();
+    
+    String result = null;
+    try {
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        System.out.println("response.statusCode() = " + response.statusCode());
+        System.out.println("response.body() = " + response.body());
+        
+        if (response.statusCode() == 200) {
+            // Gemini API 응답 구조에 맞게 파싱 변경
+            // 예: {"candidates":[{"content":{"parts":[{"text":"응답 텍스트 내용"}]}}]}
+            result = response.body().split("\"text\": \"")[1].split("\"")[0];
         } else {
-            return "curl 명령 실행 실패: " + exitCode;
+            throw new RuntimeException("API 호출 실패: " + response.statusCode() + " - " + response.body());
         }
     } catch (Exception e) {
-        return "오류 발생: " + e.getMessage();
+        throw new RuntimeException(e);
     }
+    return result;
 }
-
-//     public static String useLLM(String prompt) {
-//     String apiKey = System.getenv("GEMINI_API_KEY");
-//     String apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
     
-//     // 프롬프트 특수문자 처리
-//     prompt = prompt.replace("\\", "\\\\")
-//                    .replace("\"", "\\\"")
-//                    .replace("\n", "\\n");
-    
-//     String payload = String.format("""
-//             {
-//               "contents": [
-//                 {
-//                   "parts": [
-//                     {
-//                       "text": "%s"
-//                     }
-//                   ]
-//                 }
-//               ]
-//             }
-//             """, prompt);
-    
-//     HttpClient client = HttpClient.newHttpClient();
-//     HttpRequest request = HttpRequest.newBuilder()
-//             .uri(URI.create(apiUrl))
-//             .header("Content-Type", "application/json")
-//             .POST(HttpRequest.BodyPublishers.ofString(payload))
-//             .build();
-    
-//     try {
-//         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-//         System.out.println("응답 상태 코드: " + response.statusCode());
-        
-//         if (response.statusCode() == 200) {
-//             String responseBody = response.body();
-            
-//             // candidates 배열의 첫 번째 요소의 content 내부 parts 배열에서 text 찾기
-//             if (responseBody.contains("\"candidates\"") && 
-//                 responseBody.contains("\"content\"") && 
-//                 responseBody.contains("\"parts\"")) {
-                
-//                 // 시작 위치 찾기
-//                 int startPos = responseBody.indexOf("\"text\":");
-//                 if (startPos != -1) {
-//                     // 시작 따옴표 위치 찾기
-//                     startPos = responseBody.indexOf("\"", startPos + 7) + 1;
-                    
-//                     // 응답 텍스트 끝 위치 찾기 (닫는 따옴표)
-//                     // 이스케이프된 따옴표는 건너뛰기
-//                     int endPos = startPos;
-//                     boolean escaped = false;
-//                     while (endPos < responseBody.length()) {
-//                         char c = responseBody.charAt(endPos);
-//                         if (c == '\\') {
-//                             escaped = !escaped;
-//                         } else if (c == '"' && !escaped) {
-//                             break;
-//                         } else {
-//                             escaped = false;
-//                         }
-//                         endPos++;
-//                     }
-                    
-//                     if (endPos > startPos) {
-//                         String result = responseBody.substring(startPos, endPos)
-//                             .replace("\\n", "\n")
-//                             .replace("\\\"", "\"")
-//                             .replace("\\\\", "\\");
-//                         return result;
-//                     }
-//                 }
-                
-//                 // 백업 방법: 전체 응답 반환
-//                 System.out.println("첫 번째 방법으로 텍스트를 추출할 수 없습니다.");
-                
-//                 // candidates 배열 시작 찾기
-//                 int candidatesStart = responseBody.indexOf("\"candidates\"");
-//                 int contentStart = responseBody.indexOf("\"content\"", candidatesStart);
-//                 if (contentStart != -1) {
-//                     int contentEnd = responseBody.indexOf("}", contentStart);
-//                     if (contentEnd != -1) {
-//                         return "응답의 일부 추출: " + responseBody.substring(contentStart, contentEnd + 1);
-//                     }
-//                 }
-//             }
-            
-//             // 마지막 방법: 전체 응답 반환
-//             return "전체 응답을 반환합니다: " + responseBody;
-//         } else {
-//             if (response.statusCode() == 400 && response.body().contains("invalid_payload")) {
-//                 System.err.println("잘못된 페이로드 에러. 전송된 페이로드: " + payload);
-//             }
-//             return "API 호출 실패: " + response.statusCode() + " - " + response.body();
-//         }
-//     } catch (Exception e) {
-//         e.printStackTrace();
-//         return "오류 발생: " + e.getMessage();
-//     }
-// }
-
-
-// public static String useLLM(String prompt) {
-//     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
-//     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
-    
-//     // 환경 변수 체크
-//     if (apiKey == null || apiKey.isEmpty()) {
-//         System.err.println("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.");
-//         return "API 키가 설정되지 않았습니다.";
-//     }
-    
-//     if (apiUrl == null || apiUrl.isEmpty()) {
-//         System.err.println("GEMINI_API_URL 환경 변수가 설정되지 않았습니다.");
-//         return "URL이 설정되지 않았습니다.";
-//     }
-
-//     if (!apiUrl.contains("?key=")) {
-//         apiUrl += "?key=" + apiKey;
-//     }
-    
-//     String payload = String.format("""
-//             {
-//                 "contents": [
-//                     {
-//                         "role": "user",
-//                         "parts": [
-//                             {
-//                                 "text": "%s"
-//                             }
-//                         ]
-//                     }
-//                 ]
-//             }
-//             """, prompt);
-
-//     HttpClient client = HttpClient.newHttpClient();
-//     HttpRequest request = HttpRequest.newBuilder()
-//             .uri(URI.create(apiUrl))
-//             .header("Content-Type", "application/json")
-//             .POST(HttpRequest.BodyPublishers.ofString(payload))
-//             .build();
-            
-//     try {
-//         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-//         System.out.println("응답 상태 코드: " + response.statusCode());
-        
-//         // 응답 상태 코드 확인
-//         if (response.statusCode() != 200) {
-//             System.out.println("API 호출 실패: " + response.statusCode());
-//             System.out.println("응답 내용: " + response.body());
-//             return "API 호출에 실패했습니다: " + response.statusCode();
-//         }
-        
-//         String responseBody = response.body();
-//         if (responseBody == null || responseBody.isEmpty()) {
-//             System.out.println("응답 내용이 비어있습니다.");
-//             return "API 응답이 비어있습니다.";
-//         }
-        
-//         // 정규식을 이용한 텍스트 추출
-//         String patternString = "\"text\":\\s*\"([^\"]+)\"";
-//         Pattern pattern = Pattern.compile(patternString);
-//         Matcher matcher = pattern.matcher(responseBody);
-
-//         if (matcher.find()) {
-//             String result = matcher.group(1).trim()
-//                     .replace("\\n", "\n")  // 개행문자 처리
-//                     .replace("\\\"", "\""); // 따옴표 처리
-//             return result;
-//         } else {
-//             System.out.println("'text' 값을 찾을 수 없음!");
-//             System.out.println("응답 내용: " + responseBody);
-//             return "API 응답에서 'text' 값을 찾을 수 없습니다.";
-//         }
-//     } catch (Exception e) {
-//         e.printStackTrace();
-//         return "오류 발생: " + e.getMessage();
-//     }
-// }
     // public static String useLLM(String prompt) {
     //     String apiKey = System.getenv("GEMINI_API_KEY"); // 환경변수로 관리
     //     String apiUrl = System.getenv("GEMINI_API_URL"); // 환경변수로 관리
@@ -355,37 +181,6 @@ public class Webhook {
     //     }
     // }
 
-    public static void sendSlackMessage(String title, String text) {
-        String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
-        String payload = """
-                    {"attachments": [{
-                        "title": "%s",
-                        "text": "%s",
-                    }]}
-                """.formatted(title, text);
-        // 마치 브라우저나 유저인 척하는 것.
-        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
-        // 요청을 만들어보자! (fetch)
-        HttpRequest request = HttpRequest.newBuilder()
-                // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
-                .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build(); // 핵심
-
-        // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
-        try { // try
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
-            System.out.println("response.statusCode() = " + response.statusCode());
-            System.out.println("response.body() = " + response.body());
-        } catch (Exception e) { // catch exception e
-            throw new RuntimeException(e);
-        }
-    }
-}
-
     // public static String useLLM(String prompt) {
     //     // https://groq.com/
     //     // https://console.groq.com/playground
@@ -429,6 +224,39 @@ public class Webhook {
     //     }
     //     return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
     // }
+
+    public static void sendSlackMessage(String title, String text) {
+        String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
+        String payload = """
+                    {"attachments": [{
+                        "title": "%s",
+                        "text": "%s",
+                    }]}
+                """.formatted(title, text);
+        // 마치 브라우저나 유저인 척하는 것.
+        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
+        // 요청을 만들어보자! (fetch)
+        HttpRequest request = HttpRequest.newBuilder()
+                // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
+                .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build(); // 핵심
+
+        // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
+        try { // try
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
+            System.out.println("response.statusCode() = " + response.statusCode());
+            System.out.println("response.body() = " + response.body());
+        } catch (Exception e) { // catch exception e
+            throw new RuntimeException(e);
+        }
+    }
+}
+
+    
 
 //     public static void sendSlackMessage(String title, String text, String imageUrl) {
 //         // 다시 시작된 슬랙 침공
