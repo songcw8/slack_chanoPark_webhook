@@ -58,39 +58,45 @@ public class Webhook {
     }
 
     public static String useLLM(String prompt) {
-    String apiKey = System.getenv("GEMINI_API_KEY");
-    String apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
-    
-    // 가장 간단한 방식의 페이로드
-    String payload = String.format("{\"contents\":[{\"parts\":[{\"text\":\"%s\"}]}]}", 
-                                  prompt.replace("\"", "\\\"").replace("\n", "\\n").replace("\\", "\\\\"));
-    
     try {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(apiUrl))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build();
+        String apiKey = System.getenv("GEMINI_API_KEY");
         
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        // curl 명령어 실행 방식으로 시도
+        String command = String.format(
+            "curl -s 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s' " +
+            "-H 'Content-Type: application/json' " +
+            "-X POST " +
+            "-d '{\"contents\":[{\"parts\":[{\"text\":\"%s\"}]}]}'",
+            apiKey, prompt.replace("\"", "\\\"").replace("\n", "\\n"));
         
-        if (response.statusCode() == 200) {
-            // 간단한 응답 파싱
-            String responseBody = response.body();
-            int startIndex = responseBody.indexOf("\"text\":\"") + 8;
-            int endIndex = responseBody.indexOf("\"}", startIndex);
-            
-            if (startIndex > 8 && endIndex > startIndex) {
-                return responseBody.substring(startIndex, endIndex)
+        Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
+        
+        // 프로세스 출력 읽기
+        java.io.BufferedReader reader = new java.io.BufferedReader(
+            new java.io.InputStreamReader(process.getInputStream()));
+        StringBuilder output = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            output.append(line).append("\n");
+        }
+        
+        // 프로세스 종료 대기
+        int exitCode = process.waitFor();
+        
+        if (exitCode == 0) {
+            // 간단한 파싱
+            String response = output.toString();
+            if (response.contains("\"text\":\"")) {
+                int startIndex = response.indexOf("\"text\":\"") + 8;
+                int endIndex = response.indexOf("\"}", startIndex);
+                return response.substring(startIndex, endIndex)
                        .replace("\\n", "\n")
-                       .replace("\\\"", "\"")
-                       .replace("\\\\", "\\");
+                       .replace("\\\"", "\"");
             } else {
-                return responseBody; // 파싱 실패 시 전체 응답 반환
+                return response;
             }
         } else {
-            return "API 호출 실패: " + response.statusCode() + " - " + response.body();
+            return "curl 명령 실행 실패: " + exitCode;
         }
     } catch (Exception e) {
         return "오류 발생: " + e.getMessage();
