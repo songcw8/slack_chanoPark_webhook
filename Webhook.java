@@ -15,92 +15,83 @@ public class Webhook {
         String title = System.getenv("SLACK_WEBHOOK_TITLE");
         //sendSlackMessage(title, llmResult, llmImageResult);
         sendSlackMessage(title, llmResult);
-
-    }
-
-    public static String useLLMForImage(String prompt) {
-        //black-forest-labs/FLUX.1-schnell-Free
-        String apiUrl = System.getenv("LLM2_API_URL"); // 환경변수로 관리
-        String apiKey = System.getenv("LLM2_API_KEY"); // 환경변수로 관리
-        String model = System.getenv("LLM2_MODEL"); // 환경변수로 관리
-        String payload = """
-                {
-                  "prompt": "%s",
-                  "model": "%s",
-                  "width": 1440,
-                  "height": 1440,
-                  "steps": 3,
-                  "n": 1
-                }
-                """.formatted(prompt, model);
-        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(apiUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build(); // 핵심
-        String result = null;
-        try { // try
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            System.out.println("response.statusCode() = " + response.statusCode());
-            System.out.println("response.body() = " + response.body());
-            result = response.body()
-                    .split("url\": \"")[1]
-                    .split("\",")[0];
-        } catch (Exception e) { // catch exception e
-            throw new RuntimeException(e);
-        }
-        return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
     }
 
     public static String useLLM(String prompt) {
-    // Gemini API 관련 환경변수
-    String apiUrl = System.getenv("GEMINI_API_URL");
-    String apiKey = System.getenv("GEMINI_API_KEY");
-    apiUrl = apiUrl + "?key=" + apiKey;
-    
-    // Gemini API 형식에 맞게 페이로드 구성
-    String payload = """
-            {
-              "contents": [
+        // Gemini API 관련 환경변수
+        String apiUrl = System.getenv("GEMINI_API_URL"); // "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        String apiKey = System.getenv("GEMINI_API_KEY"); // Gemini API 키
+        apiUrl = apiUrl + "?key=" + apiKey;
+        // Gemini API 형식에 맞게 페이로드 구성
+        String payload = """
                 {
-                  "parts": [
+                  "contents": [
                     {
-                      "text": "%s"
+                      "parts": [
+                        {
+                          "text": "%s"
+                        }
+                      ]
                     }
                   ]
                 }
-              ]
+                """.formatted(prompt);
+
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(apiUrl))
+                .header("Content-Type", "application/json")
+                // Gemini API는 쿼리 파라미터로 API 키를 전달하므로 Authorization 헤더 제거
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+
+        String result = null;
+        try {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("response.statusCode() = " + response.statusCode());
+            System.out.println("response.body() = " + response.body());
+
+            if (response.statusCode() == 200) {
+                // Gemini API 응답 구조에 맞게 파싱 변경
+                // 예: {"candidates":[{"content":{"parts":[{"text":"응답 텍스트 내용"}]}}]}
+                result = response.body().split("\"text\": \"")[1].split("\"")[0];
+            } else {
+                throw new RuntimeException("API 호출 실패: " + response.statusCode() + " - " + response.body());
             }
-            """.formatted(prompt);
-    
-    HttpClient client = HttpClient.newHttpClient();
-    HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(apiUrl))
-            .header("Content-Type", "application/json")
-            // Gemini API는 쿼리 파라미터로 API 키를 전달하므로 Authorization 헤더 제거
-            .POST(HttpRequest.BodyPublishers.ofString(payload))
-            .build();
-    
-    String result = null;
-    try {
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println("response.statusCode() = " + response.statusCode());
-        System.out.println("response.body() = " + response.body());
-        
-        if (response.statusCode() == 200) {
-            // Gemini API 응답 구조에 맞게 파싱 변경
-            // 예: {"candidates":[{"content":{"parts":[{"text":"응답 텍스트 내용"}]}}]}
-            result = response.body().split("\"text\": \"")[1].split("\"")[0];
-        } else {
-            throw new RuntimeException("API 호출 실패: " + response.statusCode() + " - " + response.body());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-    } catch (Exception e) {
-        throw new RuntimeException(e);
+        return result;
     }
-    return result;
+    public static void sendSlackMessage(String title, String text) {
+        String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
+        String payload = """
+                    {"attachments": [{
+                        "title": "%s",
+                        "text": "%s",
+                    }]}
+                """.formatted(title, text);
+        // 마치 브라우저나 유저인 척하는 것.
+        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
+        // 요청을 만들어보자! (fetch)
+        HttpRequest request = HttpRequest.newBuilder()
+                // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
+                .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build(); // 핵심
+
+        // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
+        try { // try
+            HttpResponse<String> response = client.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
+            System.out.println("response.statusCode() = " + response.statusCode());
+            System.out.println("response.body() = " + response.body());
+        } catch (Exception e) { // catch exception e
+            throw new RuntimeException(e);
+        }
+    }
 }
     
     // public static String useLLM(String prompt) {
@@ -218,38 +209,6 @@ public class Webhook {
     //     }
     //     return result; // 앞 뒤를 자르고 우리에게 필요한 내용만 리턴쓰.
     // }
-
-    public static void sendSlackMessage(String title, String text) {
-        String slackUrl = System.getenv("SLACK_WEBHOOK_URL"); // 환경변수로 관리
-        String payload = """
-                    {"attachments": [{
-                        "title": "%s",
-                        "text": "%s",
-                    }]}
-                """.formatted(title, text);
-        // 마치 브라우저나 유저인 척하는 것.
-        HttpClient client = HttpClient.newHttpClient(); // 새롭게 요청할 클라이언트 생성
-        // 요청을 만들어보자! (fetch)
-        HttpRequest request = HttpRequest.newBuilder()
-                // 어디로? URI(URL) -> Uniform Resource Identifier(Link)
-                .uri(URI.create(slackUrl)) // URL을 통해서 어디로 요청을 보내는지 결정
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build(); // 핵심
-
-        // 네트워크 과정에서 오류가 있을 수 있기에 선제적 예외처리
-        try { // try
-            HttpResponse<String> response = client.send(request,
-                    HttpResponse.BodyHandlers.ofString());
-            // 2는 뭔가 됨. 4,5 뭔가 잘못 됨. 1,3? 이런 건 없어요. 1은 볼 일이 없고요. 3은... 어...
-            System.out.println("response.statusCode() = " + response.statusCode());
-            System.out.println("response.body() = " + response.body());
-        } catch (Exception e) { // catch exception e
-            throw new RuntimeException(e);
-        }
-    }
-}
-
     
 
 //     public static void sendSlackMessage(String title, String text, String imageUrl) {
